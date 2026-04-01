@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -25,7 +26,31 @@ export default function InspirationScreen({ navigation }) {
   const scaleAnim  = useRef(new Animated.Value(0.85)).current;
   const glowAnim   = useRef(new Animated.Value(0)).current;
 
+  const [quote, setQuote] = useState('');
+  const [author, setAuthor] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchQuote = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('https://zenquotes.io/api/random');
+      const data = await response.json();
+      if (data && data.length > 0) {
+        setQuote(data[0].q.toUpperCase());
+        setAuthor(data[0].a.toUpperCase());
+      }
+    } catch (error) {
+      console.error('Error fetching quote:', error);
+      setQuote('THE ONLY LIMIT IS THE ONE YOU SET.');
+      setAuthor('POCKET HERCULES');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    fetchQuote();
+
     Animated.stagger(200, [
       Animated.parallel([
         Animated.timing(quoteAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
@@ -66,42 +91,59 @@ export default function InspirationScreen({ navigation }) {
           DAILY MANTRA
         </Animated.Text>
 
-        {/* Quote */}
-        <Animated.Text
-          style={[
-            styles.quote,
-            {
-              opacity: Animated.multiply(quoteAnim, glowOpacity),
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          "THE ONLY LIMIT IS THE ONE YOU SET."
-        </Animated.Text>
+        {loading ? (
+          <ActivityIndicator size="large" color={GOLD} style={{ marginVertical: 60 }} />
+        ) : (
+          <>
+            {/* Quote */}
+            <Animated.Text
+              style={[
+                styles.quote,
+                {
+                  opacity: Animated.multiply(quoteAnim, glowOpacity),
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              "{quote}"
+            </Animated.Text>
 
-        {/* Divider */}
-        <Animated.View
-          style={[
-            styles.divider,
-            {
-              opacity: lineAnim,
-              transform: [{ scaleX: lineAnim }],
-            },
-          ]}
-        />
+            {/* Divider */}
+            <Animated.View
+              style={[
+                styles.divider,
+                {
+                  opacity: lineAnim,
+                  transform: [{ scaleX: lineAnim }],
+                },
+              ]}
+            />
 
-        {/* Attribution */}
-        <Animated.Text style={[styles.attribution, { opacity: lineAnim }]}>
-          — Pocket Hercules
-        </Animated.Text>
+            {/* Attribution */}
+            <Animated.Text style={[styles.attribution, { opacity: lineAnim }]}>
+              — {author}
+            </Animated.Text>
+          </>
+        )}
 
-        {/* Back Button */}
+        {/* Buttons */}
         <Animated.View
           style={{
             opacity: buttonAnim,
             transform: [{ translateY: buttonAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            width: '100%',
+            alignItems: 'center',
           }}
         >
+          <TouchableOpacity
+            style={[styles.button, styles.refreshButton]}
+            activeOpacity={0.8}
+            onPress={fetchQuote}
+            disabled={loading}
+          >
+            <Text style={[styles.buttonText, styles.refreshButtonText]}>↻ REFRESH</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.button}
             activeOpacity={0.8}
@@ -193,5 +235,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
     textAlign: 'center',
+  },
+  refreshButton: {
+    borderColor: GOLD,
+    marginBottom: 16,
+  },
+  refreshButtonText: {
+    color: GOLD,
   },
 });
