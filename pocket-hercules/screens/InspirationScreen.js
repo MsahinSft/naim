@@ -10,6 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -30,26 +31,64 @@ export default function InspirationScreen({ navigation }) {
   const [author, setAuthor] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const fetchQuote = async () => {
-    setLoading(true);
+  const loadCachedQuote = async () => {
     try {
-      const response = await fetch('https://zenquotes.io/api/random');
+      const cachedQuote = await AsyncStorage.getItem('@daily_quote');
+      const cachedAuthor = await AsyncStorage.getItem('@daily_author');
+      if (cachedQuote && cachedAuthor) {
+        setQuote(cachedQuote);
+        setAuthor(cachedAuthor);
+        return true;
+      }
+    } catch (e) {
+      console.error('Failed to load cached quote', e);
+    }
+    return false;
+  };
+
+  const fetchQuote = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const targetUrl = 'https://dummyjson.com/quotes/random?t=' + Date.now();
+      const response = await fetch(targetUrl);
       const data = await response.json();
-      if (data && data.length > 0) {
-        setQuote(data[0].q.toUpperCase());
-        setAuthor(data[0].a.toUpperCase());
+      console.log('New quote fetched:', data);
+
+      if (data && data.quote) {
+        const newQuote = data.quote.toUpperCase();
+        const newAuthor = data.author.toUpperCase();
+        setQuote(newQuote);
+        setAuthor(newAuthor);
+        
+        await AsyncStorage.removeItem('@daily_quote');
+        await AsyncStorage.removeItem('@daily_author');
+        await AsyncStorage.setItem('@daily_quote', newQuote);
+        await AsyncStorage.setItem('@daily_author', newAuthor);
       }
     } catch (error) {
       console.error('Error fetching quote:', error);
-      setQuote('THE ONLY LIMIT IS THE ONE YOU SET.');
-      setAuthor('POCKET HERCULES');
+      setQuote((prev) => prev || 'THE ONLY LIMIT IS THE ONE YOU SET.');
+      setAuthor((prev) => prev || 'POCKET HERCULES');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
+  const handleRefresh = () => {
+    setQuote('');
+    setAuthor('');
+    fetchQuote(true);
+  };
+
   useEffect(() => {
-    fetchQuote();
+    const init = async () => {
+      const hasCache = await loadCachedQuote();
+      if (hasCache) {
+        setLoading(false);
+      }
+      fetchQuote(!hasCache);
+    };
+    init();
 
     Animated.stagger(200, [
       Animated.parallel([
@@ -138,7 +177,7 @@ export default function InspirationScreen({ navigation }) {
           <TouchableOpacity
             style={[styles.button, styles.refreshButton]}
             activeOpacity={0.8}
-            onPress={fetchQuote}
+            onPress={handleRefresh}
             disabled={loading}
           >
             <Text style={[styles.buttonText, styles.refreshButtonText]}>↻ REFRESH</Text>
